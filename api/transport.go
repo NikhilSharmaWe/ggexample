@@ -10,13 +10,13 @@ import (
 
 type Application struct {
 	listenAddr string
-	store      store.Storage
+	storeDeps  store.Dependency
 }
 
-func NewApplication(addr string, s store.Storage) *Application {
+func NewApplication(addr string, s store.Dependency) *Application {
 	return &Application{
 		listenAddr: addr,
-		store:      s,
+		storeDeps:  s,
 	}
 }
 
@@ -33,5 +33,6 @@ func (app *Application) Start() {
 	// router.HandlerFunc(http.MethodGet, "/question", handleQuestion)
 	// router.HandlerFunc(http.MethodPost, "/check/:id", handleAnswerCheck)
 
+	log.Printf("Starting server at %s", app.listenAddr)
 	log.Fatal(http.ListenAndServe(app.listenAddr, router))
 }

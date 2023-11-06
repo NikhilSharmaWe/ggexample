@@ -20,7 +20,7 @@ func (app *Application) handleCreateQuestion(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
-	if err := app.store.CreateQuestion(q); err != nil {
+	if err := app.storeDeps.QuestionStore.Create(q); err != nil {
 		errorResponse(w, r, http.StatusInternalServerError, "failed to create new question")
 		return
 	}
@@ -36,7 +36,7 @@ func (app *Application) handledDeleteQuestion(w http.ResponseWriter, r *http.Req
 		return
 	}
 
-	if err := app.store.DeleteQuestion(id); err != nil {
+	if err := app.storeDeps.QuestionStore.DeleteByID(id); err != nil {
 		errorResponse(w, r, http.StatusInternalServerError, "failed to delete question")
 		return
 	}
@@ -52,7 +52,7 @@ func (app *Application) handleGetQuestion(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	question, err := app.store.GetQuestionByID(id)
+	question, err := app.storeDeps.QuestionStore.GetByID(id)
 	if err != nil {
 		errorResponse(w, r, http.StatusInternalServerError, "failed to get question")
 		return

@@ -8,13 +8,15 @@ import (
 )
 
 func main() {
-	s, err := store.New()
+	s, err := store.NewQuestionStore()
 	if err != nil {
 		log.Fatal(err)
 	}
-	s.Init()
+	s.InitQuestionRelation()
 
-	app := api.NewApplication(":8000", s)
+	app := api.NewApplication(":8000", store.Dependency{
+		QuestionStore: s,
+	})
 	app.Start()
 
 	// api.StartService()
