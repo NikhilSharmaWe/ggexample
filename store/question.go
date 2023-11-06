@@ -3,14 +3,16 @@ package store
 import (
 	"database/sql"
 	"fmt"
+	"log"
 
 	"github.com/lib/pq"
+	"sigs.k8s.io/ggexample/models"
 )
 
 type QuestionStore interface {
-	Create(*Question) error
+	Create(models.CreateQuestionRequest) error
+	GetByID(int) (*models.GetQuestionResponse, error)
 	DeleteByID(id int) error
-	GetByID(int) (*Question, error)
 }
 
 type questionStore struct {
@@ -49,7 +51,7 @@ func (s *questionStore) createQuestionsTable() error {
 	return err
 }
 
-func (s *questionStore) Create(q *Question) error {
+func (s *questionStore) Create(q models.CreateQuestionRequest) error {
 	query := `insert into questions 
 	(text, options, answer)
 	values ($1, $2, $3)`
@@ -72,11 +74,15 @@ func (s *questionStore) Create(q *Question) error {
 
 func (s *questionStore) DeleteByID(id int) error {
 	_, err := s.db.Query("delete from questions where id = $1", id)
+	fmt.Println("Hello")
+	if err != nil {
+		log.Println(err)
+	}
 	return err
 }
 
-func (s *questionStore) GetByID(id int) (*Question, error) {
-	rows, err := s.db.Query("select * from questions where id = $1", id)
+func (s *questionStore) GetByID(id int) (*models.GetQuestionResponse, error) {
+	rows, err := s.db.Query("select text, options from questions where id = $1", id)
 	if err != nil {
 		return nil, err
 	}
@@ -88,16 +94,14 @@ func (s *questionStore) GetByID(id int) (*Question, error) {
 	return nil, fmt.Errorf("question %d not found", id)
 }
 
-func scanIntoQuestion(rows *sql.Rows) (*Question, error) {
-	q := new(Question)
+func scanIntoQuestion(rows *sql.Rows) (*models.GetQuestionResponse, error) {
+	q := new(models.GetQuestionResponse)
 
 	var pqArray pq.StringArray
 
 	err := rows.Scan(
-		&q.ID,
 		&q.Text,
 		&pqArray,
-		&q.Answer,
 	)
 
 	q.Options = pqArray

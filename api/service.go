@@ -1,77 +1,121 @@
 package api
 
 import (
-	"net/http"
-	"strconv"
+	"fmt"
 
-	"github.com/julienschmidt/httprouter"
+	"sigs.k8s.io/ggexample/models"
 	"sigs.k8s.io/ggexample/store"
 )
+
+type QuestionManager interface {
+	Create(models.CreateQuestionRequest) (*models.ResultResponse, error)
+	GetByID(int) (*models.GetQuestionResponse, error)
+	DeleteByID(int) (*models.ResultResponse, error)
+}
+
+type questionManger struct {
+	storeDeps store.Dependency
+}
+
+func NewQuestionManager(storeDeps store.Dependency) QuestionManager {
+	return &questionManger{
+		storeDeps: storeDeps,
+	}
+}
+
+func (q *questionManger) Create(r models.CreateQuestionRequest) (*models.ResultResponse, error) {
+	if err := q.storeDeps.QuestionStore.Create(r); err != nil {
+		return nil, err
+	}
+
+	return &models.ResultResponse{
+		Result: "successfully created new question",
+	}, nil
+}
+
+func (q *questionManger) GetByID(id int) (*models.GetQuestionResponse, error) {
+	resp, err := q.storeDeps.QuestionStore.GetByID(id)
+	if err != nil {
+		return nil, err
+	}
+
+	return resp, nil
+}
+
+func (q *questionManger) DeleteByID(id int) (*models.ResultResponse, error) {
+	if err := q.storeDeps.QuestionStore.DeleteByID(id); err != nil {
+		return nil, err
+	}
+
+	return &models.ResultResponse{
+		Result: fmt.Sprintf("successfully delete question with %d", id),
+	}, nil
+}
 
 // type QuizService interface {
 // 	GetQuestions() []store.Question
 // 	CheckAnswers() []string
 // }
 
-type Application struct {
-	ListenAddr string
-	StoreDeps  store.Dependency
-}
+// type Application struct {
+// 	ListenAddr string
+// 	StoreDeps  store.Dependency
+// }
 
-func NewApplication(addr string, s store.Dependency) *Application {
-	return &Application{
-		ListenAddr: addr,
-		StoreDeps:  s,
-	}
-}
+// func NewApplication(addr string, s store.Dependency) *Application {
+// 	return &Application{
+// 		ListenAddr: addr,
+// 		StoreDeps:  s,
+// 	}
+// }
 
-func (app *Application) HandleCreateQuestion(w http.ResponseWriter, r *http.Request) {
-	q := new(store.Question)
-	if err := decodeRequest(w, r, &q); err != nil {
-		ErrorResponse(w, r, http.StatusBadRequest, err.Error())
-		return
-	}
+// func (app *Application) HandleCreateQuestion(w http.ResponseWriter, r *http.Request) {
+// 	q := new(store.Question)
+// 	if err := decodeRequest(w, r, &q); err != nil {
+// 		ErrorResponse(w, r, http.StatusBadRequest, err.Error())
+// 		return
+// 	}
 
-	if err := app.StoreDeps.QuestionStore.Create(q); err != nil {
-		ErrorResponse(w, r, http.StatusInternalServerError, "failed to create new question")
-		return
-	}
+// 	if err := app.StoreDeps.QuestionStore.Create(q); err != nil {
+// 		ErrorResponse(w, r, http.StatusInternalServerError, "failed to create new question")
+// 		return
+// 	}
 
-	writeEncodedResponse(w, http.StatusOK, map[string]string{"result": "created new question successfully"})
-}
+// 	writeEncodedResponse(w, http.StatusOK, map[string]string{"result": "created new question successfully"})
+// }
 
-func (app *Application) HandledDeleteQuestion(w http.ResponseWriter, r *http.Request) {
-	params := httprouter.ParamsFromContext(r.Context())
-	id, err := strconv.Atoi(params.ByName("id"))
-	if err != nil {
-		ErrorResponse(w, r, http.StatusInternalServerError, "failed to parse data")
-		return
-	}
+// func (app *Application) HandledDeleteQuestion(w http.ResponseWriter, r *http.Request) {
+// 	params := httprouter.ParamsFromContext(r.Context())
+// 	id, err := strconv.Atoi(params.ByName("id"))
+// 	if err != nil {
+// 		ErrorResponse(w, r, http.StatusInternalServerError, "failed to parse data")
+// 		return
+// 	}
 
-	if err := app.StoreDeps.QuestionStore.DeleteByID(id); err != nil {
-		ErrorResponse(w, r, http.StatusInternalServerError, "failed to delete question")
-		return
-	}
+// 	if err := app.StoreDeps.QuestionStore.DeleteByID(id); err != nil {
+// 		ErrorResponse(w, r, http.StatusInternalServerError, "failed to delete question")
+// 		return
+// 	}
 
-	writeEncodedResponse(w, http.StatusOK, map[string]string{"result": "deleted question successfully"})
-}
+// 	writeEncodedResponse(w, http.StatusOK, map[string]string{"result": "deleted question successfully"})
+// }
 
-func (app *Application) HandleGetQuestion(w http.ResponseWriter, r *http.Request) {
-	params := httprouter.ParamsFromContext(r.Context())
-	id, err := strconv.Atoi(params.ByName("id"))
-	if err != nil {
-		ErrorResponse(w, r, http.StatusInternalServerError, "failed to parse data")
-		return
-	}
+// func (app *Application) HandleGetQuestion(w http.ResponseWriter, r *http.Request) {
+// 	params := httprouter.ParamsFromContext(r.Context())
+// 	id, err := strconv.Atoi(params.ByName("id"))
+// 	if err != nil {
+// 		ErrorResponse(w, r, http.StatusInternalServerError, "failed to parse data")
+// 		return
+// 	}
 
-	question, err := app.StoreDeps.QuestionStore.GetByID(id)
-	if err != nil {
-		ErrorResponse(w, r, http.StatusInternalServerError, "failed to get question")
-		return
-	}
+// 	question, err := app.StoreDeps.QuestionStore.GetByID(id)
+// 	if err != nil {
+// 		ErrorResponse(w, r, http.StatusInternalServerError, "failed to get question")
+// 		return
+// 	}
 
-	writeEncodedResponse(w, http.StatusOK, *question)
-}
+// 	writeEncodedResponse(w, http.StatusOK, *question)
+// }
 
 // func NewQuizService() *QuizService{
 // 	return &quizService{}

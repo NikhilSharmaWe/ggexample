@@ -4,7 +4,6 @@ import (
 	"log"
 	"net/http"
 
-	"github.com/julienschmidt/httprouter"
 	"sigs.k8s.io/ggexample/api"
 	"sigs.k8s.io/ggexample/store"
 )
@@ -16,24 +15,32 @@ func main() {
 	}
 	s.InitQuestionRelation()
 
-	app := api.NewApplication(":8000", store.Dependency{
+	svc := api.NewQuestionManager(store.Dependency{
 		QuestionStore: s,
 	})
 
-	router := httprouter.New()
+	router := api.NewHTTPHandler(svc)
+	log.Printf("Starting server at %s", ":8000")
+	log.Fatal(http.ListenAndServe(":8000", router))
 
-	router.NotFound = http.HandlerFunc(api.NotFoundResponse)
-	router.MethodNotAllowed = http.HandlerFunc(api.MethodNotAllowed)
+	// app := api.NewHTTPHandler(":8000", store.Dependency{
+	// 	QuestionStore: s,
+	// })
 
-	router.HandlerFunc(http.MethodPost, "/createQ", app.HandleCreateQuestion)
-	router.HandlerFunc(http.MethodDelete, "/deleteQ/:id", app.HandledDeleteQuestion)
-	router.HandlerFunc(http.MethodGet, "/getQ/:id", app.HandleGetQuestion)
+	// router := httprouter.New()
 
-	// router.HandlerFunc(http.MethodGet, "/question", handleQuestion)
-	// router.HandlerFunc(http.MethodPost, "/check/:id", handleAnswerCheck)
+	// router.NotFound = http.HandlerFunc(api.NotFoundResponse)
+	// router.MethodNotAllowed = http.HandlerFunc(api.MethodNotAllowed)
 
-	log.Printf("Starting server at %s", app.ListenAddr)
-	log.Fatal(http.ListenAndServe(app.ListenAddr, router))
+	// router.HandlerFunc(http.MethodPost, "/createQ", app.HandleCreateQuestion)
+	// router.HandlerFunc(http.MethodDelete, "/deleteQ/:id", app.HandledDeleteQuestion)
+	// router.HandlerFunc(http.MethodGet, "/getQ/:id", app.HandleGetQuestion)
+
+	// // router.HandlerFunc(http.MethodGet, "/question", handleQuestion)
+	// // router.HandlerFunc(http.MethodPost, "/check/:id", handleAnswerCheck)
+
+	// log.Printf("Starting server at %s", app.ListenAddr)
+	// log.Fatal(http.ListenAndServe(app.ListenAddr, router))
 
 	// api.StartService()
 

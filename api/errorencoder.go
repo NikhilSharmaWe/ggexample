@@ -1,24 +1,28 @@
 package api
 
 import (
+	"context"
 	"net/http"
 )
 
-func ErrorResponse(w http.ResponseWriter, r *http.Request, status int, message any) {
-	env := map[string]any{
+func errorResponse(w http.ResponseWriter, status int, message any) {
+	resp := map[string]any{
 		"error": message,
 	}
-
-	err := writeEncodedResponse(w, status, env)
+	err := writeEncodedResponse(w, status, resp)
 	if err != nil {
 		w.WriteHeader(status)
 	}
 }
 
-func NotFoundResponse(w http.ResponseWriter, r *http.Request) {
-	ErrorResponse(w, r, http.StatusNotFound, NotFoundErr)
+func notFoundResponse(w http.ResponseWriter, _ *http.Request) {
+	errorResponse(w, http.StatusNotFound, NotFoundErr)
 }
 
-func MethodNotAllowed(w http.ResponseWriter, r *http.Request) {
-	ErrorResponse(w, r, http.StatusMethodNotAllowed, MethodNotFoundErr)
+func methodNotAllowed(w http.ResponseWriter, _ *http.Request) {
+	errorResponse(w, http.StatusMethodNotAllowed, MethodNotFoundErr)
+}
+
+func errorEncoder(_ context.Context, err error, w http.ResponseWriter) {
+	errorResponse(w, http.StatusInternalServerError, err.Error())
 }
