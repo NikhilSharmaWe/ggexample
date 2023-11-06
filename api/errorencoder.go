@@ -4,21 +4,21 @@ import (
 	"net/http"
 )
 
-func errorResponse(w http.ResponseWriter, r *http.Request, status int, message any) {
+func ErrorResponse(w http.ResponseWriter, r *http.Request, status int, message any) {
 	env := map[string]any{
 		"error": message,
 	}
 
-	err := writeJSON(w, status, env)
+	err := writeEncodedResponse(w, status, env)
 	if err != nil {
 		w.WriteHeader(status)
 	}
 }
 
-func notFoundResponse(w http.ResponseWriter, r *http.Request) {
-	errorResponse(w, r, http.StatusNotFound, NotFoundErr)
+func NotFoundResponse(w http.ResponseWriter, r *http.Request) {
+	ErrorResponse(w, r, http.StatusNotFound, NotFoundErr)
 }
 
-func methodNotAllowed(w http.ResponseWriter, r *http.Request) {
-	errorResponse(w, r, http.StatusMethodNotAllowed, MethodNotFoundErr)
+func MethodNotAllowed(w http.ResponseWriter, r *http.Request) {
+	ErrorResponse(w, r, http.StatusMethodNotAllowed, MethodNotFoundErr)
 }

@@ -1,38 +1,23 @@
 package api
 
 import (
-	"log"
+	"encoding/json"
 	"net/http"
-
-	"github.com/julienschmidt/httprouter"
-	"sigs.k8s.io/ggexample/store"
 )
 
-type Application struct {
-	listenAddr string
-	storeDeps  store.Dependency
-}
-
-func NewApplication(addr string, s store.Dependency) *Application {
-	return &Application{
-		listenAddr: addr,
-		storeDeps:  s,
+func writeEncodedResponse(w http.ResponseWriter, status int, data any) error {
+	js, err := json.MarshalIndent(data, "", "\t")
+	if err != nil {
+		return err
 	}
+
+	w.Header().Set("Content-Type", "json/application")
+	w.WriteHeader(status)
+	w.Write(js)
+
+	return nil
 }
 
-func (app *Application) Start() {
-	router := httprouter.New()
-
-	router.NotFound = http.HandlerFunc(notFoundResponse)
-	router.MethodNotAllowed = http.HandlerFunc(methodNotAllowed)
-
-	router.HandlerFunc(http.MethodPost, "/createQ", app.handleCreateQuestion)
-	router.HandlerFunc(http.MethodDelete, "/deleteQ/:id", app.handledDeleteQuestion)
-	router.HandlerFunc(http.MethodGet, "/getQ/:id", app.handleGetQuestion)
-
-	// router.HandlerFunc(http.MethodGet, "/question", handleQuestion)
-	// router.HandlerFunc(http.MethodPost, "/check/:id", handleAnswerCheck)
-
-	log.Printf("Starting server at %s", app.listenAddr)
-	log.Fatal(http.ListenAndServe(app.listenAddr, router))
+func decodeRequest(w http.ResponseWriter, r *http.Request, dst any) error {
+	return json.NewDecoder(r.Body).Decode(dst)
 }

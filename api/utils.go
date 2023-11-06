@@ -1,10 +1,5 @@
 package api
 
-import (
-	"encoding/json"
-	"net/http"
-)
-
 // type Question struct {
 // 	Text    string   `json:"question"`
 // 	Options []string `json:"options"`
@@ -41,20 +36,3 @@ import (
 // 	id := strconv.Itoa(rand.Intn(len(questions)))
 // 	return id, questions[id]
 // }
-
-func writeJSON(w http.ResponseWriter, status int, data any) error {
-	js, err := json.MarshalIndent(data, "", "\t")
-	if err != nil {
-		return err
-	}
-
-	w.Header().Set("Content-Type", "json/application")
-	w.WriteHeader(status)
-	w.Write(js)
-
-	return nil
-}
-
-func readJSON(w http.ResponseWriter, r *http.Request, dst any) error {
-	return json.NewDecoder(r.Body).Decode(dst)
-}
