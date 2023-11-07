@@ -65,9 +65,9 @@ func NewHTTPHandler(svc QuestionManager) http.Handler {
 	mux.NotFoundHandler = http.HandlerFunc(notFoundResponse)
 	mux.MethodNotAllowedHandler = http.HandlerFunc(methodNotAllowed)
 
-	mux.Handle("/createQ", createQuestionHandler).Methods(http.MethodPost)
-	mux.Handle("/deleteQ/{id}", deleteQuestionHandler).Methods(http.MethodDelete)
-	mux.Handle("/getQ/{id}", getQuestionHandler).Methods(http.MethodGet)
+	mux.Handle("/question/create", createQuestionHandler).Methods(http.MethodPost)
+	mux.Handle("/question/delete/{id}", deleteQuestionHandler).Methods(http.MethodDelete)
+	mux.Handle("/question/get/{id}", getQuestionHandler).Methods(http.MethodGet)
 
 	return mux
 }
@@ -75,7 +75,17 @@ func NewHTTPHandler(svc QuestionManager) http.Handler {
 func decodeCreateQuestionRequest(_ context.Context, r *http.Request) (any, error) {
 	req := models.CreateQuestionRequest{}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		return nil, err
+		return nil, Error{
+			Message: err.Error(),
+			Code:    http.StatusBadGateway,
+		}
+	}
+
+	if req.Text == "" || len(req.Options) != 3 || req.Answer == "" {
+		return nil, Error{
+			Message: "invalid data",
+			Code:    http.StatusBadRequest,
+		}
 	}
 
 	return req, nil
@@ -85,7 +95,10 @@ func decodeParamIDRequest(_ context.Context, r *http.Request) (any, error) {
 	id, err := strconv.Atoi(mux.Vars(r)["id"])
 
 	if err != nil {
-		return nil, err
+		return nil, Error{
+			Message: err.Error(),
+			Code:    http.StatusBadRequest,
+		}
 	}
 
 	return id, nil

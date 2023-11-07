@@ -74,7 +74,6 @@ func (s *questionStore) Create(q models.CreateQuestionRequest) error {
 
 func (s *questionStore) DeleteByID(id int) error {
 	_, err := s.db.Query("delete from questions where id = $1", id)
-	fmt.Println("Hello")
 	if err != nil {
 		log.Println(err)
 	}
