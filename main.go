@@ -15,11 +15,16 @@ func main() {
 	}
 	s.InitQuestionRelation()
 
-	svc := api.NewQuestionManager(store.Dependency{
+	questionSVC := api.NewQuestionManager(store.Dependency{
 		QuestionStore: s,
 	})
 
-	router := api.NewHTTPHandler(svc)
+	quizSVC := api.NewQuizManager(store.Dependency{
+		QuestionStore: s,
+	})
+
+	router := api.NewHTTPHandler(questionSVC, quizSVC)
+
 	log.Printf("Starting server at %s", ":8000")
 	log.Fatal(http.ListenAndServe(":8000", router))
 
