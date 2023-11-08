@@ -5,6 +5,15 @@ import (
 	"net/http"
 )
 
+type Error struct {
+	Message string
+	Code    int
+}
+
+func (e Error) Error() string {
+	return e.Message
+}
+
 func errorResponse(w http.ResponseWriter, status int, message any) {
 	resp := map[string]any{
 		"error": message,
@@ -24,5 +33,11 @@ func methodNotAllowed(w http.ResponseWriter, _ *http.Request) {
 }
 
 func errorEncoder(_ context.Context, err error, w http.ResponseWriter) {
-	errorResponse(w, http.StatusInternalServerError, err.Error())
+	e, ok := err.(Error)
+	if !ok {
+		errorResponse(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+
+	errorResponse(w, e.Code, e.Message)
 }

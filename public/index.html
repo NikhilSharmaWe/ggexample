@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Questions and Answers</title>
+</head>
+<body>
+    <h1 id="heading">Questions</h1>
+    <form id="input-form" > 
+
+        {{range $index, $question := .Questions}}
+        <div class="question">
+            <p id="{{ $index }}">{{ $question.Text }}</p>
+            {{range $optionIndex, $option := $question.Options}}
+			{{$id := $question.ID}}
+            <label>
+                <input type="radio" name="{{ $index }}" value="{{ $id }}_{{ $option }}" id="answer" required>
+                {{ $option }}
+            </label><br>
+            {{end}}
+        </div>
+        {{end}}
+
+        <input type="button" value="Submit" id="submitButton">
+    </form>
+
+	<ul id="messageList"></ul>
+
+	<script>
+	window.addEventListener("DOMContentLoaded", (_) => { 
+		let websocket = new WebSocket("ws://" + window.location.host + "/websocket");
+		let form = document.getElementById("input-form");
+		let submitButton = document.getElementById("submitButton");
+		let heading = document.getElementById("heading");
+		let answer = document.getElementById("answer")
+
+		let selectedOptions = {};
+
+		let messageList = document.getElementById("messageList");
+
+		websocket.addEventListener("message", function (evt) {
+			let msg = JSON.parse(evt.data);
+
+			switch (msg.event) {
+			case 'result':
+				data = msg.data;
+				messageList.innerHTML = '';
+				form.innerHTML = '';
+				heading.innerHTML = "Result";
+
+				for (const key in data) {
+					const listItem = document.createElement("li");
+					listItem.textContent = key + ": " + data[key];
+					messageList.appendChild(listItem);
+				}
+	
+
+			case 'answer':
+				data = msg.data;
+				let p = document.getElementById(data.idx)
+				console.log("Hello")
+				console.log(data.idx + " : " + data.result);
+				if (data.result == "correct") {
+					p.style.color= "green";
+				} else {
+					p.style.color = "red";
+				}
+			}
+		});
+
+		form.querySelectorAll('input[type="radio"]').forEach(function (radio) {
+            radio.addEventListener("change", function (event) {
+                let index = radio.name;
+                let valueParts = radio.value.split('_');
+                let questionId = valueParts[0];
+                let optionValue = valueParts[1];
+				
+
+                if (radio.checked) {
+					let data  = {
+						id: questionId,
+						idx: index,
+						answer: optionValue
+					};
+					websocket.send(JSON.stringify({ event: 'answer', data: data }));
+
+                }
+            });
+        });
+
+        submitButton.addEventListener("click", function (event) {
+            form.querySelectorAll('input[type="radio"]').forEach(function (radio) {
+				let index = radio.name;
+				let valueParts = radio.value.split('_');
+                let questionId = valueParts[0];
+                let optionValue = valueParts[1];
+                    
+                if (radio.checked) {
+                    selectedOptions[index] = {
+						id: questionId,
+						answer: optionValue
+					};
+                }
+            });
+
+
+            websocket.send(JSON.stringify({event: 'submit', data: selectedOptions}));
+
+            selectedOptions = {};
+            });
+        });
+	</script>
+</body>
+</html>
