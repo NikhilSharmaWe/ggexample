@@ -24,7 +24,8 @@ func NewQuestionManager(storeDeps store.Dependency) QuestionManager {
 }
 
 func (q *questionManger) Create(r models.CreateQuestionRequest) (*models.ResultResponse, error) {
-	if err := q.storeDeps.QuestionStore.CreateQuestion(r); err != nil {
+	fmt.Println("In the Create function")
+	if err := q.storeDeps.QuestionStore.Create(r); err != nil {
 		return nil, err
 	}
 
@@ -34,7 +35,7 @@ func (q *questionManger) Create(r models.CreateQuestionRequest) (*models.ResultR
 }
 
 func (q *questionManger) GetByID(id int) (*models.GetQuestionResponse, error) {
-	resp, err := q.storeDeps.QuestionStore.GetQuestionByID(id)
+	resp, err := q.storeDeps.QuestionStore.GetByID(id)
 	if err != nil {
 		return nil, err
 	}
@@ -43,11 +44,11 @@ func (q *questionManger) GetByID(id int) (*models.GetQuestionResponse, error) {
 }
 
 func (q *questionManger) DeleteByID(id int) (*models.ResultResponse, error) {
-	if err := q.storeDeps.QuestionStore.DeleteQuestionByID(id); err != nil {
+	if err := q.storeDeps.QuestionStore.DeleteByID(id); err != nil {
 		return nil, err
 	}
 
 	return &models.ResultResponse{
-		Result: fmt.Sprintf("successfully delete question with %d", id),
+		Result: fmt.Sprintf("successfully delete question with id: %d", id),
 	}, nil
 }

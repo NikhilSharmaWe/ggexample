@@ -11,31 +11,22 @@ import (
 )
 
 type QuestionStore interface {
-	CreateQuestion(models.CreateQuestionRequest) error
-	GetQuestionByID(int) (*models.GetQuestionResponse, error)
+	Create(models.CreateQuestionRequest) error
+	GetByID(int) (*models.GetQuestionResponse, error)
 	GetRandomQuestions(int) (*models.GetQuestionsResponse, error)
+	GetRandomQuestionIds(int) ([]int, error)
 	CheckAnswer(id int, answer string) (bool, error)
-	DeleteQuestionByID(id int) error
+	DeleteByID(id int) error
 }
 
 type questionStore struct {
 	db *sql.DB
 }
 
-func NewQuestionStore() (*questionStore, error) {
-	connStr := "user=miyamoto dbname=quiz password=1234 sslmode=disable"
-	db, err := sql.Open("postgres", connStr)
-	if err != nil {
-		return nil, err
-	}
-
-	if err := db.Ping(); err != nil {
-		return nil, err
-	}
-
+func NewQuestionStore(db *sql.DB) *questionStore {
 	return &questionStore{
 		db: db,
-	}, nil
+	}
 }
 
 func (s *questionStore) InitQuestionRelation() error {
@@ -54,7 +45,7 @@ func (s *questionStore) createQuestionsTable() error {
 	return err
 }
 
-func (s *questionStore) CreateQuestion(q models.CreateQuestionRequest) error {
+func (s *questionStore) Create(q models.CreateQuestionRequest) error {
 	query := `insert into questions 
 	(text, options, answer)
 	values ($1, $2, $3)`
@@ -69,13 +60,14 @@ func (s *questionStore) CreateQuestion(q models.CreateQuestionRequest) error {
 	)
 
 	if err != nil {
+		fmt.Println("--------------------")
 		return err
 	}
 
 	return nil
 }
 
-func (s *questionStore) DeleteQuestionByID(id int) error {
+func (s *questionStore) DeleteByID(id int) error {
 	_, err := s.db.Query("delete from questions where id = $1", id)
 	if err != nil {
 		log.Println(err)
@@ -83,7 +75,7 @@ func (s *questionStore) DeleteQuestionByID(id int) error {
 	return err
 }
 
-func (s *questionStore) GetQuestionByID(id int) (*models.GetQuestionResponse, error) {
+func (s *questionStore) GetByID(id int) (*models.GetQuestionResponse, error) {
 	rows, err := s.db.Query("select id, text, options, answer from questions where id = $1", id)
 	if err != nil {
 		return nil, err
@@ -115,7 +107,7 @@ func (s *questionStore) GetRandomQuestions(count int) (*models.GetQuestionsRespo
 			continue
 		}
 
-		question, err := s.GetQuestionByID(randomID)
+		question, err := s.GetByID(randomID)
 		if err != nil {
 			continue
 		}
@@ -129,8 +121,40 @@ func (s *questionStore) GetRandomQuestions(count int) (*models.GetQuestionsRespo
 	}, nil
 }
 
+func (s *questionStore) GetRandomQuestionIds(count int) ([]int, error) {
+	totalQuestions, err := s.getTotalQuestionCount()
+	if err != nil {
+		return nil, err
+	}
+
+	if totalQuestions < count {
+		return nil, fmt.Errorf("not enough questions available in the database")
+	}
+
+	var questionsIds []int
+	selectedQuestions := make(map[int]struct{})
+
+	for len(questionsIds) < count {
+		randomID := rand.Intn(totalQuestions) + 1
+
+		if _, ok := selectedQuestions[randomID]; ok {
+			continue
+		}
+
+		_, err := s.GetByID(randomID)
+		if err != nil {
+			continue
+		}
+
+		questionsIds = append(questionsIds, randomID)
+		selectedQuestions[randomID] = struct{}{}
+	}
+
+	return questionsIds, nil
+}
+
 func (s *questionStore) CheckAnswer(id int, answer string) (bool, error) {
-	q, err := s.GetQuestionByID(id)
+	q, err := s.GetByID(id)
 	if err != nil {
 		return false, err
 	}

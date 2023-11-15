@@ -11,22 +11,21 @@ import (
 	"github.com/go-kit/kit/endpoint"
 	httptransport "github.com/go-kit/kit/transport/http"
 	"github.com/gorilla/mux"
-	"github.com/gorilla/websocket"
 	"sigs.k8s.io/ggexample/models"
 )
 
-var (
-	upgrader = websocket.Upgrader{
-		CheckOrigin: func(r *http.Request) bool {
-			return true
-		},
-	}
-)
+// var (
+// 	upgrader = websocket.Upgrader{
+// 		CheckOrigin: func(r *http.Request) bool {
+// 			return true
+// 		},
+// 	}
+// )
 
-type connectionResponse struct {
-	request *http.Request
-	svc     QuizManager
-}
+// type connectionResponse struct {
+// 	request *http.Request
+// 	svc     QuizManager
+// }
 
 func makeCreateQuestionEndpoint(svc QuestionManager) endpoint.Endpoint {
 	return func(ctx context.Context, r interface{}) (interface{}, error) {
@@ -44,30 +43,77 @@ func makeDeleteQuestionEndpoint(svc QuestionManager) endpoint.Endpoint {
 
 func makeGetQuestionEndpoint(svc QuestionManager) endpoint.Endpoint {
 	return func(ctx context.Context, r interface{}) (interface{}, error) {
-		req := r.(int)
-		return svc.GetByID(req)
+		id, err := strconv.Atoi(r.(string))
+		if err != nil {
+			return nil, Error{
+				Message: err.Error(),
+				Code:    http.StatusBadRequest,
+			}
+		}
+		return svc.GetByID(id)
 	}
 }
 
-func makeCheckQuiz(svc QuizManager) endpoint.Endpoint {
+func makeCreateQuizEndpoint(svc QuizManager) endpoint.Endpoint {
 	return func(ctx context.Context, r interface{}) (interface{}, error) {
-		req := r.(*http.Request)
-		return returnConnectionResponse(req, svc)
+		resp, err := svc.Create()
+		if err != nil {
+			return nil, err
+		}
+
+		return resp, nil
 	}
 }
 
 func makeGetQuizEndpoint(svc QuizManager) endpoint.Endpoint {
 	return func(ctx context.Context, r interface{}) (interface{}, error) {
-		return svc.GetQuiz()
+		id := r.(string)
+		resp, err := svc.GetByID(id)
+		if err != nil {
+			return nil, err
+		}
+
+		return resp, nil
 	}
 }
 
-func returnConnectionResponse(r *http.Request, svc QuizManager) (any, error) {
-	return connectionResponse{
-		request: r,
-		svc:     svc,
-	}, nil
+func makeDeleteQuizEndpoint(svc QuizManager) endpoint.Endpoint {
+	return func(ctx context.Context, r interface{}) (interface{}, error) {
+		id := r.(string)
+		resp, err := svc.DeleteByID(id)
+		if err != nil {
+			return nil, err
+		}
+
+		return resp, nil
+	}
 }
+
+func makeUpdateQuizEndpoint(svc QuizManager) endpoint.Endpoint {
+	return func(ctx context.Context, r interface{}) (interface{}, error) {
+		req := r.(*models.UpdateQuizRequest)
+		resp, err := svc.UpdateQuiz(*req)
+		if err != nil {
+			return nil, err
+		}
+
+		return resp, nil
+	}
+}
+
+// func makeCheckQuiz(svc QuizManager) endpoint.Endpoint {
+// 	return func(ctx context.Context, r interface{}) (interface{}, error) {
+// 		req := r.(*http.Request)
+// 		return returnConnectionResponse(req, svc)
+// 	}
+// }
+
+// func returnConnectionResponse(r *http.Request, svc QuizManager) (any, error) {
+// 	return connectionResponse{
+// 		request: r,
+// 		svc:     svc,
+// 	}, nil
+// }
 
 func NewHTTPHandler(questionSVC QuestionManager, quizSVC QuizManager) http.Handler {
 
@@ -98,19 +144,40 @@ func NewHTTPHandler(questionSVC QuestionManager, quizSVC QuizManager) http.Handl
 		options...,
 	)
 
-	getQuizHandler := httptransport.NewServer(
-		makeGetQuizEndpoint(quizSVC),
+	createQuizHandler := httptransport.NewServer(
+		makeCreateQuizEndpoint(quizSVC),
 		decodeEmptyRequest,
-		renderQuiz,
+		encodeResponse,
 		options...,
 	)
 
-	checkQuizHandler := httptransport.NewServer(
-		makeCheckQuiz(quizSVC),
-		returnRequest,
-		handleWebsocketResponse,
+	getQuizHandler := httptransport.NewServer(
+		makeGetQuizEndpoint(quizSVC),
+		decodeParamIDRequest,
+		encodeResponse,
 		options...,
 	)
+
+	deleteQuizHandler := httptransport.NewServer(
+		makeDeleteQuizEndpoint(quizSVC),
+		decodeParamIDRequest,
+		encodeResponse,
+		options...,
+	)
+
+	updateQuizHandler := httptransport.NewServer(
+		makeUpdateQuizEndpoint(quizSVC),
+		decodeQuizUpdateRequest,
+		encodeResponse,
+		options...,
+	)
+
+	// checkQuizHandler := httptransport.NewServer(
+	// 	makeCheckQuiz(quizSVC),
+	// 	returnRequest,
+	// 	handleWebsocketResponse,
+	// 	options...,
+	// )
 
 	mux.NotFoundHandler = http.HandlerFunc(notFoundResponse)
 	mux.MethodNotAllowedHandler = http.HandlerFunc(methodNotAllowed)
@@ -119,8 +186,12 @@ func NewHTTPHandler(questionSVC QuestionManager, quizSVC QuizManager) http.Handl
 	mux.Handle("/question/delete/{id}", deleteQuestionHandler).Methods(http.MethodDelete)
 	mux.Handle("/question/get/{id}", getQuestionHandler).Methods(http.MethodGet)
 
-	mux.Handle("/quiz", getQuizHandler).Methods(http.MethodGet)
-	mux.Handle("/websocket", checkQuizHandler).Methods(http.MethodGet)
+	mux.Handle("/quiz/create", createQuizHandler).Methods(http.MethodGet)
+	mux.Handle("/quiz/get/{id}", getQuizHandler).Methods(http.MethodGet)
+	mux.Handle("/quiz/delete/{id}", deleteQuizHandler).Methods(http.MethodDelete)
+	mux.Handle("/quiz/update", updateQuizHandler).Methods(http.MethodPost)
+
+	// mux.Handle("/websocket", checkQuizHandler).Methods(http.MethodGet)
 
 	return mux
 }
@@ -145,16 +216,27 @@ func decodeCreateQuestionRequest(_ context.Context, r *http.Request) (any, error
 }
 
 func decodeParamIDRequest(_ context.Context, r *http.Request) (any, error) {
-	id, err := strconv.Atoi(mux.Vars(r)["id"])
-
-	if err != nil {
+	id, ok := mux.Vars(r)["id"]
+	if !ok {
 		return nil, Error{
-			Message: err.Error(),
+			Message: "bad request",
 			Code:    http.StatusBadRequest,
 		}
 	}
-
 	return id, nil
+}
+
+func decodeQuizUpdateRequest(_ context.Context, r *http.Request) (any, error) {
+	req := &models.UpdateQuizRequest{}
+	if err := json.NewDecoder(r.Body).Decode(req); err != nil {
+		return nil, Error{
+			Message: err.Error(),
+			Code:    http.StatusBadGateway,
+		}
+	}
+
+	return req, nil
+
 }
 
 func decodeEmptyRequest(_ context.Context, r *http.Request) (any, error) {
@@ -165,100 +247,94 @@ func returnRequest(_ context.Context, r *http.Request) (any, error) {
 	return r, nil
 }
 
-type AnswerData struct {
-	ID     int    `json:"id"`
-	Idx    int    `json:"idx"`
-	Answer string `json:"answer"`
-}
+// func handleWebsocketResponse(c context.Context, w http.ResponseWriter, response interface{}) error {
+// 	r := response.(connectionResponse)
+// 	ws, err := upgrader.Upgrade(w, r.request, nil)
+// 	if err != nil {
+// 		return err
+// 	}
 
-func handleWebsocketResponse(c context.Context, w http.ResponseWriter, response interface{}) error {
-	r := response.(connectionResponse)
-	ws, err := upgrader.Upgrade(w, r.request, nil)
-	if err != nil {
-		return err
-	}
+// 	var submitted bool
 
-	var submitted bool
+// 	for !submitted {
+// 		message := models.WebsocketMessage{
+// 			Data: models.QuestionAnswerResponse{},
+// 		}
+// 		if err := ws.ReadJSON(&message); err != nil {
+// 			return err
+// 		}
 
-	for !submitted {
-		message := models.WebsocketMessage{
-			Data: models.QuestionAnswerResponse{},
-		}
-		if err := ws.ReadJSON(&message); err != nil {
-			return err
-		}
+// 		switch message.Event {
+// 		case "answer":
+// 			data := message.Data.(map[string]interface{})
+// 			id, err := strconv.Atoi(data["id"].(string))
+// 			if err != nil {
+// 				return err
+// 			}
+// 			answer := data["answer"].(string)
 
-		switch message.Event {
-		case "answer":
-			data := message.Data.(map[string]interface{})
-			id, err := strconv.Atoi(data["id"].(string))
-			if err != nil {
-				return err
-			}
-			answer := data["answer"].(string)
+// 			correct, err := r.svc.CheckAnswer(id, answer)
+// 			if err != nil {
+// 				return err
+// 			}
 
-			correct, err := r.svc.CheckAnswer(id, answer)
-			if err != nil {
-				return err
-			}
+// 			var content string
+// 			if correct {
+// 				content = "correct"
+// 			} else {
+// 				content = "wrong"
+// 			}
 
-			var content string
-			if correct {
-				content = "correct"
-			} else {
-				content = "wrong"
-			}
+// 			if err := ws.WriteJSON(&models.WebsocketMessage{
+// 				Event: "answer",
+// 				Data: models.QuestionResultResponse{
+// 					Index:  data["idx"].(string),
+// 					Result: content,
+// 				},
+// 			}); err != nil {
+// 				return err
+// 			}
 
-			if err := ws.WriteJSON(&models.WebsocketMessage{
-				Event: "answer",
-				Data: models.QuestionResult{
-					Index:  data["idx"].(string),
-					Result: content,
-				},
-			}); err != nil {
-				return err
-			}
+// 		case "submit":
+// 			resp := make(map[int]string)
 
-		case "submit":
-			resp := make(map[int]string)
+// 			for idx, res := range message.Data.(map[string]interface{}) {
+// 				res := res.(map[string]interface{})
+// 				idx, err := strconv.Atoi(idx)
+// 				if err != nil {
+// 					return err
+// 				}
 
-			for idx, res := range message.Data.(map[string]interface{}) {
-				res := res.(map[string]interface{})
-				idx, err := strconv.Atoi(idx)
-				if err != nil {
-					return err
-				}
+// 				id, err := strconv.Atoi(res["id"].(string))
+// 				if err != nil {
+// 					return err
+// 				}
 
-				id, err := strconv.Atoi(res["id"].(string))
-				if err != nil {
-					return err
-				}
+// 				correct, err := r.svc.CheckAnswer(id, res["answer"].(string))
+// 				if err != nil {
+// 					return err
+// 				}
 
-				correct, err := r.svc.CheckAnswer(id, res["answer"].(string))
-				if err != nil {
-					return err
-				}
+// 				if correct {
+// 					resp[idx+1] = "correct"
+// 				} else {
+// 					resp[idx+1] = "wrong"
+// 				}
+// 			}
 
-				if correct {
-					resp[idx+1] = "correct"
-				} else {
-					resp[idx+1] = "wrong"
-				}
-			}
+// 			if err := ws.WriteJSON(&models.WebsocketMessage{
+// 				Event: "result",
+// 				Data:  resp,
+// 			}); err != nil {
+// 				return err
+// 			}
 
-			if err := ws.WriteJSON(&models.WebsocketMessage{
-				Event: "result",
-				Data:  resp,
-			}); err != nil {
-				return err
-			}
+// 			submitted = true
+// 		}
+// 	}
 
-			submitted = true
-		}
-	}
-
-	return nil
-}
+// 	return nil
+// }
 
 func encodeResponse(_ context.Context, w http.ResponseWriter, response interface{}) error {
 	return json.NewEncoder(w).Encode(response)

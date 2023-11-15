@@ -22,9 +22,19 @@ type QuestionAnswerResponse struct {
 	Answer string `json:"answer"`
 }
 
-type QuestionResult struct {
+type QuestionResultResponse struct {
 	Index  string `json:"idx"`
 	Result string `json:"result"`
+}
+
+type CreateQuizResponse struct {
+	ID string `json:"id"`
+}
+
+type GetQuizResponse struct {
+	ID          string   `json:"id"`
+	QuestionIDs []int    `json:"qids"`
+	Progress    []string `json:"progress"`
 }
 
 type ResultResponse struct {
