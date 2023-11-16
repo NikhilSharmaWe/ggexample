@@ -9,6 +9,7 @@ import (
 type Dependency struct {
 	QuestionStore QuestionStore
 	QuizStore     QuizStore
+	ResponseStore ResponseStore
 }
 
 func NewDB() (*sql.DB, error) {

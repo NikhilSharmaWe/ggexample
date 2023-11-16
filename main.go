@@ -24,17 +24,22 @@ func main() {
 		log.Fatal(err)
 	}
 
-	questionSVC := api.NewQuestionManager(store.Dependency{
+	responseStore := store.NewResponseStore(db)
+	if err := responseStore.InitResponseRelation(); err != nil {
+		log.Fatal(err)
+	}
+
+	storeDep := store.Dependency{
 		QuestionStore: questionStore,
 		QuizStore:     quizStore,
-	})
+		ResponseStore: responseStore,
+	}
 
-	quizSVC := api.NewQuizManager(store.Dependency{
-		QuestionStore: questionStore,
-		QuizStore:     quizStore,
-	})
+	questionSVC := api.NewQuestionManager(storeDep)
+	quizSVC := api.NewQuizManager(storeDep)
+	responseSVC := api.NewResponseManager(storeDep)
 
-	router := api.NewHTTPHandler(questionSVC, quizSVC)
+	router := api.NewHTTPHandler(questionSVC, quizSVC, responseSVC)
 
 	log.Printf("Starting server at %s", ":8000")
 	log.Fatal(http.ListenAndServe(":8000", router))

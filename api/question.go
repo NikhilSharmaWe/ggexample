@@ -24,7 +24,6 @@ func NewQuestionManager(storeDeps store.Dependency) QuestionManager {
 }
 
 func (q *questionManger) Create(r models.CreateQuestionRequest) (*models.ResultResponse, error) {
-	fmt.Println("In the Create function")
 	if err := q.storeDeps.QuestionStore.Create(r); err != nil {
 		return nil, err
 	}

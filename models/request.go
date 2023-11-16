@@ -7,8 +7,15 @@ type CreateQuestionRequest struct {
 }
 
 type CreateQuizRequest struct {
-	ID          string `json:"id"`
-	QuestionIDs []int  `json:"qids"`
+	ID string `json:"id"`
+	// QuestionIDs []int  `json:"qids"`
+}
+
+type CreateResponseRequest struct {
+	SessionID  string `json:"session_id"`
+	QuestionID int    `json:"question_id"`
+	Answer     string `json:"answer"`
+	IsCorrect  bool   `json:"is_correct"`
 }
 
 type UpdateQuizRequest struct {

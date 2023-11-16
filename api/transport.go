@@ -77,6 +77,35 @@ func makeGetQuizEndpoint(svc QuizManager) endpoint.Endpoint {
 	}
 }
 
+func makeGetQuizQuestionEndpoint(svc QuizManager) endpoint.Endpoint {
+	return func(ctx context.Context, r interface{}) (interface{}, error) {
+		id := r.(string)
+		completed, err := svc.IsQuizCompleted(id)
+		if err != nil {
+			return nil, err
+		}
+
+		if completed {
+			resp, err := svc.GetQuizResult(id)
+			if err != nil {
+				return nil, err
+			}
+			return resp, nil
+		}
+
+		resp, err := svc.Get(id)
+		if err != nil {
+			return nil, err
+		}
+
+		return &models.Question{
+			ID:      resp.ID,
+			Text:    resp.Text,
+			Options: resp.Options,
+		}, nil
+	}
+}
+
 func makeDeleteQuizEndpoint(svc QuizManager) endpoint.Endpoint {
 	return func(ctx context.Context, r interface{}) (interface{}, error) {
 		id := r.(string)
@@ -89,10 +118,26 @@ func makeDeleteQuizEndpoint(svc QuizManager) endpoint.Endpoint {
 	}
 }
 
-func makeUpdateQuizEndpoint(svc QuizManager) endpoint.Endpoint {
+func makeResponseEndpoint(responseSVC ResponseManager, quizSVC QuizManager) endpoint.Endpoint {
 	return func(ctx context.Context, r interface{}) (interface{}, error) {
-		req := r.(*models.UpdateQuizRequest)
-		resp, err := svc.UpdateQuiz(*req)
+		req := r.(models.CreateResponseRequest)
+
+		id := req.SessionID
+		completed, err := quizSVC.IsQuizCompleted(id)
+		if err != nil {
+			return nil, err
+		}
+
+		if completed {
+			resp, err := quizSVC.GetQuizResult(id)
+			if err != nil {
+				return nil, err
+			}
+			return resp, nil
+		}
+
+		resp, err := responseSVC.Create(req)
+
 		if err != nil {
 			return nil, err
 		}
@@ -115,7 +160,7 @@ func makeUpdateQuizEndpoint(svc QuizManager) endpoint.Endpoint {
 // 	}, nil
 // }
 
-func NewHTTPHandler(questionSVC QuestionManager, quizSVC QuizManager) http.Handler {
+func NewHTTPHandler(questionSVC QuestionManager, quizSVC QuizManager, responseSVC ResponseManager) http.Handler {
 
 	mux := mux.NewRouter()
 
@@ -152,7 +197,7 @@ func NewHTTPHandler(questionSVC QuestionManager, quizSVC QuizManager) http.Handl
 	)
 
 	getQuizHandler := httptransport.NewServer(
-		makeGetQuizEndpoint(quizSVC),
+		makeGetQuizQuestionEndpoint(quizSVC),
 		decodeParamIDRequest,
 		encodeResponse,
 		options...,
@@ -165,9 +210,9 @@ func NewHTTPHandler(questionSVC QuestionManager, quizSVC QuizManager) http.Handl
 		options...,
 	)
 
-	updateQuizHandler := httptransport.NewServer(
-		makeUpdateQuizEndpoint(quizSVC),
-		decodeQuizUpdateRequest,
+	responseHandler := httptransport.NewServer(
+		makeResponseEndpoint(responseSVC, quizSVC),
+		decodeResponseRequest,
 		encodeResponse,
 		options...,
 	)
@@ -189,7 +234,7 @@ func NewHTTPHandler(questionSVC QuestionManager, quizSVC QuizManager) http.Handl
 	mux.Handle("/quiz/create", createQuizHandler).Methods(http.MethodGet)
 	mux.Handle("/quiz/get/{id}", getQuizHandler).Methods(http.MethodGet)
 	mux.Handle("/quiz/delete/{id}", deleteQuizHandler).Methods(http.MethodDelete)
-	mux.Handle("/quiz/update", updateQuizHandler).Methods(http.MethodPost)
+	mux.Handle("/quiz/response", responseHandler).Methods(http.MethodPost)
 
 	// mux.Handle("/websocket", checkQuizHandler).Methods(http.MethodGet)
 
@@ -226,9 +271,9 @@ func decodeParamIDRequest(_ context.Context, r *http.Request) (any, error) {
 	return id, nil
 }
 
-func decodeQuizUpdateRequest(_ context.Context, r *http.Request) (any, error) {
-	req := &models.UpdateQuizRequest{}
-	if err := json.NewDecoder(r.Body).Decode(req); err != nil {
+func decodeResponseRequest(_ context.Context, r *http.Request) (any, error) {
+	req := models.CreateResponseRequest{}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		return nil, Error{
 			Message: err.Error(),
 			Code:    http.StatusBadGateway,

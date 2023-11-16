@@ -17,6 +17,7 @@ type QuestionStore interface {
 	GetRandomQuestionIds(int) ([]int, error)
 	CheckAnswer(id int, answer string) (bool, error)
 	DeleteByID(id int) error
+	GetNextQuestion(sessionID string) (*models.GetQuestionResponse, error)
 }
 
 type questionStore struct {
@@ -60,7 +61,6 @@ func (s *questionStore) Create(q models.CreateQuestionRequest) error {
 	)
 
 	if err != nil {
-		fmt.Println("--------------------")
 		return err
 	}
 
@@ -185,4 +185,39 @@ func (s *questionStore) getTotalQuestionCount() (int, error) {
 		return 0, err
 	}
 	return count, nil
+}
+
+func (s *questionStore) GetNextQuestion(sessionID string) (*models.GetQuestionResponse, error) {
+	// Check if the quiz session has already been completed
+	// completed, err := s.isQuizSessionCompleted(sessionID)
+	// if err != nil {
+	// 	return nil, err
+	// }
+
+	// if completed {
+	// 	// Quiz session already completed
+	// 	return nil, nil
+	// }
+	// Get a random unanswered question for the session
+	rows, err := s.db.Query(`
+        select id, text, options, answer
+        FROM questions
+        WHERE id NOT IN (
+            SELECT question_id
+            FROM quiz_responses
+            WHERE quiz_session_id = $1
+        )
+        ORDER BY RANDOM()
+        LIMIT 1
+    `, sessionID)
+
+	if err != nil {
+		return nil, err
+	}
+
+	for rows.Next() {
+		return scanIntoQuestion(rows)
+	}
+
+	return nil, fmt.Errorf("question not found")
 }

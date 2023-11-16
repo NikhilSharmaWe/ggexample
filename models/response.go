@@ -7,6 +7,12 @@ type GetQuestionResponse struct {
 	Answer  string   `json:"answer"`
 }
 
+type Question struct {
+	ID      int      `json:"id"`
+	Text    string   `json:"text"`
+	Options []string `json:"options"`
+}
+
 type GetQuestionsResponse struct {
 	Questions []*GetQuestionResponse `json:"questions"`
 }
@@ -35,6 +41,11 @@ type GetQuizResponse struct {
 	ID          string   `json:"id"`
 	QuestionIDs []int    `json:"qids"`
 	Progress    []string `json:"progress"`
+}
+
+type QuizResultResponse struct {
+	TotalQuestions int `json:"total_questions"`
+	CorrectAnswers int `json:"correct_answers"`
 }
 
 type ResultResponse struct {
