@@ -4,7 +4,6 @@ import (
 	"database/sql"
 	"fmt"
 	"log"
-	"math/rand"
 
 	"github.com/lib/pq"
 	"sigs.k8s.io/ggexample/models"
@@ -13,8 +12,6 @@ import (
 type QuestionStore interface {
 	Create(models.CreateQuestionRequest) error
 	GetByID(int) (*models.GetQuestionResponse, error)
-	GetRandomQuestions(int) (*models.GetQuestionsResponse, error)
-	GetRandomQuestionIds(int) ([]int, error)
 	CheckAnswer(id int, answer string) (bool, error)
 	DeleteByID(id int) error
 	GetNextQuestion(sessionID string) (*models.GetQuestionResponse, error)
@@ -88,71 +85,6 @@ func (s *questionStore) GetByID(id int) (*models.GetQuestionResponse, error) {
 	return nil, fmt.Errorf("question %d not found", id)
 }
 
-func (s *questionStore) GetRandomQuestions(count int) (*models.GetQuestionsResponse, error) {
-	totalQuestions, err := s.getTotalQuestionCount()
-	if err != nil {
-		return nil, err
-	}
-
-	if totalQuestions < count {
-		return nil, fmt.Errorf("not enough questions available in the database")
-	}
-
-	selectedQuestions := make(map[int]struct{})
-	questions := make([]*models.GetQuestionResponse, 0)
-	for len(questions) < count {
-		randomID := rand.Intn(totalQuestions) + 1
-
-		if _, ok := selectedQuestions[randomID]; ok {
-			continue
-		}
-
-		question, err := s.GetByID(randomID)
-		if err != nil {
-			continue
-		}
-
-		questions = append(questions, question)
-		selectedQuestions[randomID] = struct{}{}
-	}
-
-	return &models.GetQuestionsResponse{
-		Questions: questions,
-	}, nil
-}
-
-func (s *questionStore) GetRandomQuestionIds(count int) ([]int, error) {
-	totalQuestions, err := s.getTotalQuestionCount()
-	if err != nil {
-		return nil, err
-	}
-
-	if totalQuestions < count {
-		return nil, fmt.Errorf("not enough questions available in the database")
-	}
-
-	var questionsIds []int
-	selectedQuestions := make(map[int]struct{})
-
-	for len(questionsIds) < count {
-		randomID := rand.Intn(totalQuestions) + 1
-
-		if _, ok := selectedQuestions[randomID]; ok {
-			continue
-		}
-
-		_, err := s.GetByID(randomID)
-		if err != nil {
-			continue
-		}
-
-		questionsIds = append(questionsIds, randomID)
-		selectedQuestions[randomID] = struct{}{}
-	}
-
-	return questionsIds, nil
-}
-
 func (s *questionStore) CheckAnswer(id int, answer string) (bool, error) {
 	q, err := s.GetByID(id)
 	if err != nil {
@@ -178,27 +110,7 @@ func scanIntoQuestion(rows *sql.Rows) (*models.GetQuestionResponse, error) {
 	return q, err
 }
 
-func (s *questionStore) getTotalQuestionCount() (int, error) {
-	var count int
-	err := s.db.QueryRow("SELECT count(*) FROM questions").Scan(&count)
-	if err != nil {
-		return 0, err
-	}
-	return count, nil
-}
-
 func (s *questionStore) GetNextQuestion(sessionID string) (*models.GetQuestionResponse, error) {
-	// Check if the quiz session has already been completed
-	// completed, err := s.isQuizSessionCompleted(sessionID)
-	// if err != nil {
-	// 	return nil, err
-	// }
-
-	// if completed {
-	// 	// Quiz session already completed
-	// 	return nil, nil
-	// }
-	// Get a random unanswered question for the session
 	rows, err := s.db.Query(`
         select id, text, options, answer
         FROM questions

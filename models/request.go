@@ -6,11 +6,6 @@ type CreateQuestionRequest struct {
 	Answer  string   `json:"answer"`
 }
 
-type CreateQuizRequest struct {
-	ID string `json:"id"`
-	// QuestionIDs []int  `json:"qids"`
-}
-
 type CreateResponseRequest struct {
 	SessionID  string `json:"session_id"`
 	QuestionID int    `json:"question_id"`

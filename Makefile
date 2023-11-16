@@ -1,5 +1,5 @@
 build:
-	@go build -o bin/ggexample
+	@go build -o bin/demoQuizApp
 
 run: build
-	@./bin/ggexample
+	@./bin/demoQuizApp

@@ -3,8 +3,6 @@ package api
 import (
 	"context"
 	"encoding/json"
-	"html/template"
-	"log"
 	"net/http"
 	"strconv"
 
@@ -65,21 +63,10 @@ func makeCreateQuizEndpoint(svc QuizManager) endpoint.Endpoint {
 	}
 }
 
-func makeGetQuizEndpoint(svc QuizManager) endpoint.Endpoint {
-	return func(ctx context.Context, r interface{}) (interface{}, error) {
-		id := r.(string)
-		resp, err := svc.GetByID(id)
-		if err != nil {
-			return nil, err
-		}
-
-		return resp, nil
-	}
-}
-
 func makeGetQuizQuestionEndpoint(svc QuizManager) endpoint.Endpoint {
 	return func(ctx context.Context, r interface{}) (interface{}, error) {
 		id := r.(string)
+
 		completed, err := svc.IsQuizCompleted(id)
 		if err != nil {
 			return nil, err
@@ -123,6 +110,7 @@ func makeResponseEndpoint(responseSVC ResponseManager, quizSVC QuizManager) endp
 		req := r.(models.CreateResponseRequest)
 
 		id := req.SessionID
+
 		completed, err := quizSVC.IsQuizCompleted(id)
 		if err != nil {
 			return nil, err
@@ -146,20 +134,6 @@ func makeResponseEndpoint(responseSVC ResponseManager, quizSVC QuizManager) endp
 	}
 }
 
-// func makeCheckQuiz(svc QuizManager) endpoint.Endpoint {
-// 	return func(ctx context.Context, r interface{}) (interface{}, error) {
-// 		req := r.(*http.Request)
-// 		return returnConnectionResponse(req, svc)
-// 	}
-// }
-
-// func returnConnectionResponse(r *http.Request, svc QuizManager) (any, error) {
-// 	return connectionResponse{
-// 		request: r,
-// 		svc:     svc,
-// 	}, nil
-// }
-
 func NewHTTPHandler(questionSVC QuestionManager, quizSVC QuizManager, responseSVC ResponseManager) http.Handler {
 
 	mux := mux.NewRouter()
@@ -167,6 +141,8 @@ func NewHTTPHandler(questionSVC QuestionManager, quizSVC QuizManager, responseSV
 	options := []httptransport.ServerOption{
 		httptransport.ServerErrorEncoder(errorEncoder),
 	}
+
+	checkQuizExistsMiddleware := checkQuizExistsMiddleware(quizSVC)
 
 	createQuestionHandler := httptransport.NewServer(
 		makeCreateQuestionEndpoint(questionSVC),
@@ -197,7 +173,7 @@ func NewHTTPHandler(questionSVC QuestionManager, quizSVC QuizManager, responseSV
 	)
 
 	getQuizHandler := httptransport.NewServer(
-		makeGetQuizQuestionEndpoint(quizSVC),
+		checkQuizExistsMiddleware(makeGetQuizQuestionEndpoint(quizSVC)),
 		decodeParamIDRequest,
 		encodeResponse,
 		options...,
@@ -211,7 +187,7 @@ func NewHTTPHandler(questionSVC QuestionManager, quizSVC QuizManager, responseSV
 	)
 
 	responseHandler := httptransport.NewServer(
-		makeResponseEndpoint(responseSVC, quizSVC),
+		checkQuizExistsMiddleware(makeResponseEndpoint(responseSVC, quizSVC)),
 		decodeResponseRequest,
 		encodeResponse,
 		options...,
@@ -288,8 +264,33 @@ func decodeEmptyRequest(_ context.Context, r *http.Request) (any, error) {
 	return nil, nil
 }
 
-func returnRequest(_ context.Context, r *http.Request) (any, error) {
-	return r, nil
+func checkQuizExistsMiddleware(svc QuizManager) endpoint.Middleware {
+	return func(next endpoint.Endpoint) endpoint.Endpoint {
+		return func(ctx context.Context, r interface{}) (interface{}, error) {
+			var id string
+			_, ok := r.(string)
+			if ok {
+				id = r.(string)
+			} else {
+				req := r.(models.CreateResponseRequest)
+				id = req.SessionID
+			}
+
+			exists, err := svc.Exists(id)
+			if err != nil {
+				return nil, err
+			}
+
+			if !exists {
+				return nil, Error{
+					Message: "quiz not found",
+					Code:    http.StatusBadRequest,
+				}
+			}
+
+			return next(ctx, r)
+		}
+	}
 }
 
 // func handleWebsocketResponse(c context.Context, w http.ResponseWriter, response interface{}) error {
@@ -385,18 +386,18 @@ func encodeResponse(_ context.Context, w http.ResponseWriter, response interface
 	return json.NewEncoder(w).Encode(response)
 }
 
-func renderQuiz(_ context.Context, w http.ResponseWriter, response interface{}) error {
-	tmpl, err := template.ParseFiles("./public/index.html")
-	if err != nil {
-		log.Fatal(err)
-	}
+// func renderQuiz(_ context.Context, w http.ResponseWriter, response interface{}) error {
+// 	tmpl, err := template.ParseFiles("./public/index.html")
+// 	if err != nil {
+// 		log.Fatal(err)
+// 	}
 
-	if err := tmpl.Execute(w, response); err != nil {
-		log.Println(err)
-	}
+// 	if err := tmpl.Execute(w, response); err != nil {
+// 		log.Println(err)
+// 	}
 
-	return nil
-}
+// 	return nil
+// }
 
 func writeEncodedResponse(w http.ResponseWriter, status int, data any) error {
 	js, err := json.MarshalIndent(data, "", "\t")
